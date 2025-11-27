@@ -1,0 +1,34 @@
+[
+  {
+    "team_name": "Chaitu Cheetahs",
+    "purse": 10000,
+    "players": [],
+    "logos": [
+      "https://playerimages-1.s3.us-east-1.amazonaws.com/defaultPlayer.jpg"
+    ]
+  },
+  {
+    "team_name": "Suri Strickers",
+    "purse": 10000,
+    "players": [],
+    "logos": [
+      "https://playerimages-1.s3.us-east-1.amazonaws.com/defaultPlayer.jpg"
+    ]
+  },
+  {
+    "team_name": "Bajji Blasters",
+    "purse": 10000,
+    "players": [],
+    "logos": [
+      "https://playerimages-1.s3.us-east-1.amazonaws.com/defaultPlayer.jpg"
+    ]
+  },
+  {
+    "team_name": "Tom Tunders",
+    "purse": 10000,
+    "players": [],
+    "logos": [
+      "https://playerimages-1.s3.us-east-1.amazonaws.com/defaultPlayer.jpg"
+    ]
+  }
+]

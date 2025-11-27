@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="relative min-h-screen bg-cover bg-center"
+     style="background-image: url('https://playerimages-1.s3.us-east-1.amazonaws.com/backgroundImage-Viewml.jpg');">
+
+  <div class="max-w-7xl mx-auto p-6 relative z-10 grid grid-cols-1 md:grid-cols-2 gap-6">
+
+    <!-- LEFT PANEL: Current Player + Teams -->
+    <div class="flex flex-col gap-6 overflow-y-auto max-h-screen">
+
+      <!-- CURRENT PLAYER -->
+      <div class="flex flex-col items-center p-4 glass rounded-lg relative">
+        <!-- SOLD STAMP -->
+        <img id="sold_stamp" class="sold-stamp absolute top-2 left-2 w-24 h-24 opacity-0 transition-opacity duration-500"
+             src="https://playersauction.s3.ap-south-1.amazonaws.com/SOLD-STAMP.jpg" />
+        <!-- Player Image -->
+        <img id="player_image" class="w-32 h-32 md:w-48 md:h-48 object-cover rounded-lg mb-4"
+             src="{{ default_image_url }}" alt="Player Image">
+        <h3 id="player_name" class="text-lg md:text-xl font-semibold text-white">---</h3>
+        <p id="player_role" class="text-sm md:text-base text-white">Role: ---</p>
+        <p id="player_age" class="text-sm md:text-base text-white">Age: ---</p>
+        <p id="player_base_price" class="text-sm md:text-base text-white">Base Price: ---</p>
+        <p id="current_bid_display" class="font-semibold text-white">Highest Bid: ---</p>
+        <p id="highest_bidder_display" class="text-white">Bid by: ---</p>
+      </div>
+
+      <!-- TEAMS GRID -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {% for i in range(4) %}
+        <div id="team_box_{{ i }}" class="glass p-3 rounded-lg text-white flex flex-col items-center">
+          <img id="team_logo_{{ i }}" class="w-16 h-16 mb-2 hidden" src="" alt="Team Logo">
+          <h4 id="team_name_{{ i }}" class="font-semibold text-center text-sm md:text-base">Team {{ i+1 }}</h4>
+          <p id="team_purse_{{ i }}" class="text-xs md:text-sm">Purse: ---</p>
+          <ul id="team_players_{{ i }}" class="list-disc list-inside text-xs md:text-sm"></ul>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: Videos -->
+    <div class="flex flex-col gap-4 overflow-y-auto max-h-screen pr-2">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {% for video_url in video_urls %}
+        <video class="w-full rounded-lg" src="{{ video_url }}" muted autoplay loop playsinline></video>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SOLD MODAL -->
+  <div id="sold_modal"
+       class="fixed inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center z-50 opacity-0 pointer-events-none transition-opacity duration-500">
+    <div class="bg-white p-6 rounded-lg text-center relative shadow-lg max-w-sm w-full">
+      <img id="sold_player_image" class="w-32 h-32 rounded mb-4 mx-auto" src="" alt="Player Image">
+      <h2 id="sold_text" class="text-2xl font-bold text-green-600 mb-2">PLAYER SOLD</h2>
+      <p id="sold_team" class="text-2xl font-bold text-green-600 mb-2"></p>
+      <p id="sold_price" class="text-lg font-semibold text-gray-800"></p>
+      <img id="sold_team_logo" class="w-20 h-20 mx-auto mt-2 hidden" src="" alt="Team Logo">
+    </div>
+  </div>
+
+  <!-- Sold Audio -->
+  <audio id="sold_audio" src="{{ url_for('static', filename='playerSold.mp3') }}"></audio>
+
+  <!-- Fireworks Canvas -->
+  <canvas id="fireworks_canvas" class="fixed inset-0 pointer-events-none z-40"></canvas>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<script>
+const fallback_image = "{{ default_image_url }}";
+const pollInterval = window.APP_CONFIG.POLL_INTERVAL_MS || 800;
+let lastSoldPlayerId = null;
+let userInteracted = false;
+
+// Enable audio after user interaction
+document.addEventListener('click', () => { userInteracted = true }, { once: true });
+
+async function fetchState() {
+  try {
+    const res = await fetch("/api/state");
+    const json = await res.json();
+    return json.state;
+  } catch {
+    return {};
+  }
+}
+
+function showSoldModal(player, team, price) {
+  const modal = document.getElementById("sold_modal");
+  document.getElementById("sold_player_image").src = player.image || fallback_image;
+  document.getElementById("sold_team").innerText = `SOLD TO ${team}`;
+  document.getElementById("sold_price").innerText = `Final Price: ${price}`;
+
+  const myConfetti = confetti.create(document.getElementById('fireworks_canvas'), { resize: true, useWorker: true });
+  myConfetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+
+  modal.classList.remove("opacity-0", "pointer-events-none");
+  setTimeout(()=> { modal.classList.add("opacity-0", "pointer-events-none"); }, 3500);
+}
+
+async function refreshUI() {
+  const state = await fetchState();
+  if(!state) return;
+
+  const p = state.current_player || {};
+  const active = state.auction_active;
+
+  // Player card
+  document.getElementById("player_name").innerText = p.name || "---";
+  document.getElementById("player_role").innerText = "Role: " + (p.role||"---");
+  document.getElementById("player_age").innerText = "Age: " + (p.age||"---");
+  document.getElementById("player_base_price").innerText = "Base Price: " + (p.base_price||"---");
+  document.getElementById("current_bid_display").innerText = "Highest Bid: " + (state.highest_bid || "---");
+  document.getElementById("highest_bidder_display").innerText = "Bid by: " + (state.current_bid?.team_name || "---");
+  document.getElementById("player_image").src = p.image || fallback_image;
+
+  // SOLD EVENT
+  if(state.sold_to && state.highest_bid && lastSoldPlayerId !== p.id){
+    document.getElementById("sold_stamp").classList.add("opacity-100");
+
+    const audio = document.getElementById("sold_audio");
+    if(userInteracted){
+      audio.currentTime = 0;
+      audio.play().catch(()=>{});
+    }
+
+    showSoldModal(p, state.sold_to, state.highest_bid);
+    lastSoldPlayerId = p.id;
+  } else if(!state.sold_to){
+    document.getElementById("sold_stamp").classList.remove("opacity-100");
+  }
+
+  // Teams grid
+  for(let i=0; i<4; i++){
+    const team = state.teams[i];
+    const box = document.getElementById(`team_box_${i}`);
+    if(team){
+      document.getElementById(`team_name_${i}`).innerText = team.team_name;
+      document.getElementById(`team_purse_${i}`).innerText = `Purse: ${team.purse}`;
+      const logoEl = document.getElementById(`team_logo_${i}`);
+      if(team.logo){
+        logoEl.src = team.logo;
+        logoEl.classList.remove("hidden");
+      } else {
+        logoEl.classList.add("hidden");
+      }
+      const playerList = document.getElementById(`team_players_${i}`);
+      playerList.innerHTML = "";
+      team.players.forEach(pl=>{
+        const li = document.createElement("li");
+        li.textContent = `${pl.name} - ${pl.final_price}`;
+        playerList.appendChild(li);
+      });
+    } else {
+      box.innerHTML = `<h4 class="font-semibold text-center text-sm md:text-base">Team ${i+1}</h4>`;
+    }
+  }
+}
+
+refreshUI();
+setInterval(refreshUI, pollInterval);
+</script>
+
+{% endblock %}

@@ -1,0 +1,12 @@
+{
+  "current_player_index": -1,
+  "auction_active": false,
+  "current_bid": {
+    "amount": null,
+    "bidder": "",
+    "team_name": ""
+  },
+  "last_bid_team": "",
+  "sold_to": "",
+  "current_bid_history": {}
+}

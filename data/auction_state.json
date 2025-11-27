@@ -1,0 +1,6 @@
+{
+  "status": "not_started",
+  "current_player_index": -1,
+  "highest_bid": null,
+  "highest_bidder": null
+}

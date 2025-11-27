@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="relative min-h-screen bg-cover bg-center"
+     style="background-image: url('https://playerimages-1.s3.us-east-1.amazonaws.com/backgroundImage-Viewml.jpg');">
+
+  <div class="max-w-7xl mx-auto p-6 relative z-10 grid grid-cols-1 md:grid-cols-2 gap-6">
+
+    <!-- LEFT PANEL: Current Player & Selection -->
+    <div class="flex-1 glass p-6 flex flex-col items-center gap-4">
+
+      <h2 class="text-xl font-bold mb-4 text-center">Current Player</h2>
+
+      <!-- Notification Banner -->
+      <div id="notification_banner"
+           class="w-full mb-4 p-2 rounded text-center opacity-0 transition-opacity duration-500"></div>
+
+      <!-- Player Selection Dropdown -->
+      <select id="player_select"
+              class="w-full mb-4 p-2 rounded shadow bg-white text-black focus:ring-2 focus:ring-blue-500">
+        <option value="">-- Select Player --</option>
+      </select>
+
+      <!-- Player Card -->
+      <img id="player_image" class="w-48 h-48 object-cover rounded-lg mb-4" src="" alt="Player Image">
+      <h3 id="player_name" class="text-lg font-semibold">---</h3>
+      <p id="player_role">Role: ---</p>
+      <p id="player_age">Age: ---</p>
+      <p id="player_base_price">Base Price: ---</p>
+      <p id="current_bid_display">Highest Bid: ---</p>
+      <p id="highest_bidder_display" class="text-gray-700">Highest Bidder: ---</p>
+
+      <!-- Bid History -->
+      <div id="bid_history" class="w-full mt-4 p-2 border rounded max-h-48 overflow-y-auto bg-black bg-opacity-10">
+        <h4 class="font-semibold mb-2">Bid History</h4>
+        <ul id="bid_history_list" class="list-disc ml-4 text-sm text-gray-800"></ul>
+      </div>
+
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button onclick="apiAction('/api/auction/start')" class="btn-primary px-4 py-2">Start Auction</button>
+        <button onclick="apiAction('/api/auction/sell')" class="btn-warning px-4 py-2">Sell</button>
+        <button onclick="apiAction('/api/auction/next')" class="btn-primary px-4 py-2">Next</button>
+        <button onclick="apiAction('/api/auction/rollback')" class="btn-danger px-4 py-2">Rollback</button>
+        <button onclick="apiAction('/api/auction/reset')" class="btn-danger px-4 py-2">Reset</button>
+      </div>
+
+      <p id="waiting_message" class="mt-4 text-gray-600 font-semibold hidden text-center">
+        Waiting for next player selection...
+      </p>
+
+    </div>
+
+    <!-- RIGHT PANEL: Teams & Sold Players -->
+    <div class="flex-1 glass p-6 overflow-y-auto max-h-screen">
+      <h2 class="text-xl font-bold mb-4 text-center">Teams & Sold Players</h2>
+      <div id="teams_container" class="space-y-4">
+        <!-- Teams will be dynamically added here -->
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const fallback_image = "{{ default_image_url | default('https://via.placeholder.com/150') }}";
+const pollInterval = window.APP_CONFIG.POLL_INTERVAL_MS || 500;
+let lastSoldPlayerId = null;
+
+// Show temporary notification with fade
+function showNotification(message, type='info'){
+  const banner = document.getElementById("notification_banner");
+  banner.innerText = message;
+  banner.className = "w-full mb-4 p-2 rounded text-center transition-opacity duration-500 " +
+                     (type==='success' ? 'bg-green-200 text-green-800' :
+                      type==='warning' ? 'bg-yellow-200 text-yellow-800' :
+                                        'bg-blue-200 text-blue-800');
+  banner.classList.remove("opacity-0");
+  setTimeout(()=>banner.classList.add("opacity-0"), 1200);
+}
+
+// Fetch players
+async function fetchPlayers() {
+  try {
+    const res = await fetch("/api/players");
+    const data = await res.json();
+    const select = document.getElementById("player_select");
+    select.innerHTML = '<option value="">-- Select Player --</option>';
+    data.players.forEach(p => {
+      const option = document.createElement("option");
+      option.value = p.id;
+      option.textContent = p.name + " (" + p.role + ")";
+      select.appendChild(option);
+    });
+  } catch(e) { console.error(e); }
+}
+
+// Player select
+document.getElementById("player_select").addEventListener("change", async function() {
+  const player_id = parseInt(this.value);
+  if(!player_id) return;
+  try {
+    const res = await fetch("/api/auction/select", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({player_id})
+    });
+    const j = await res.json();
+    if(j.error) alert(j.error);
+    await refreshUI();
+  } catch(e){ console.error(e); }
+});
+
+// Auction actions
+async function apiAction(path){
+  try {
+    const r = await fetch(path,{method:'POST'});
+    const j = await r.json();
+    if(j.error) alert(j.error);
+  } catch(e){ console.error("apiAction error:",e); }
+  await refreshUI();
+}
+
+// Refresh UI
+async function refreshUI(){
+  try{
+    const res = await fetch("/api/state");
+    const json = await res.json();
+    if(!json.state) return;
+    const state = json.state;
+
+    const p = state.current_player || {};
+    const auctionActive = state.auction_active || false;
+
+    // Update player info
+    document.getElementById("player_name").innerText = p.name || "---";
+    document.getElementById("player_role").innerText = "Role: " + (p.role||"---");
+    document.getElementById("player_age").innerText = "Age: " + (p.age||"---");
+    document.getElementById("player_base_price").innerText = "Base Price: " + (p.base_price||"---");
+    document.getElementById("current_bid_display").innerText = "Highest Bid: " + (state.highest_bid || "---");
+    document.getElementById("highest_bidder_display").innerText = (p.sold_to || state.current_bid?.team_name || "---");
+    document.getElementById("player_image").src = p.image || fallback_image;
+
+    // Waiting message
+    const waitingMsg = document.getElementById("waiting_message");
+    if(auctionActive && (!p.name || p.name.includes("Waiting"))) {
+      waitingMsg.classList.remove("hidden");
+      document.getElementById("bid_history_list").innerHTML = "";
+    } else {
+      waitingMsg.classList.add("hidden");
+    }
+
+    // Bid history
+    const bidHistoryList = document.getElementById("bid_history_list");
+    bidHistoryList.innerHTML = "";
+    const bids = state.bid_history || state.current_bid_history?.[String(p.id)] || [];
+    bids.forEach(b => {
+      const li = document.createElement("li");
+      li.textContent = `${b.team_name} (${b.bidder}) bid ${b.amount}`;
+      bidHistoryList.appendChild(li);
+    });
+
+    // Notifications without flicker
+    if(state.bid_by && state.current_bid?.amount) {
+        showNotification(`Bid Placed by ${state.bid_by}: ${state.current_bid.amount}`, 'info');
+    }
+    if(state.sold_to && state.highest_bid && lastSoldPlayerId !== p.id) {
+        showNotification(`Player SOLD to ${state.sold_to} for ${state.highest_bid}`, 'success');
+        lastSoldPlayerId = p.id;
+    }
+
+    // Teams
+    const teamsContainer = document.getElementById("teams_container");
+    teamsContainer.innerHTML = "";
+    state.teams.forEach(team=>{
+      const div = document.createElement("div");
+      div.className = "glass p-3 rounded";
+      let html = `<h3 class="font-semibold text-lg">${team.team_name} - Purse: ${team.purse}</h3>`;
+      html += `<ul class="ml-4 mt-2 list-disc">`;
+      team.players.forEach(pl=>{
+        html += `<li>${pl.name} - ${pl.final_price}</li>`;
+      });
+      html += `</ul>`;
+      div.innerHTML = html;
+      teamsContainer.appendChild(div);
+    });
+
+  } catch(e){ console.error(e); }
+}
+
+// Initial load
+fetchPlayers();
+refreshUI();
+setInterval(refreshUI, pollInterval);
+</script>
+
+{% endblock %}

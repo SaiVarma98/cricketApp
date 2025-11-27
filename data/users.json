@@ -1,0 +1,31 @@
+[
+  {
+    "username": "auctioneer1",
+    "password": "plainpass",
+    "role": "auctioneer"
+  },
+  {
+    "username": "chaitu",
+    "password": "pass",
+    "role": "bidder",
+    "team_name": "Chaitu Cheetahs"
+  },
+  {
+    "username": "bajji",
+    "password": "pass",
+    "role": "bidder",
+    "team_name": "Bajji Blasters"
+  },
+  {
+    "username": "tom",
+    "password": "pass",
+    "role": "bidder",
+    "team_name": "Tom Tunders"
+  },
+  {
+    "username": "suresh",
+    "password": "pass",
+    "role": "bidder",
+    "team_name": "Suri Strickers"
+  }
+]

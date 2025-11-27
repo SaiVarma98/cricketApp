@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="relative min-h-screen bg-cover bg-center"
+     style="background-image: url('https://playerimages-1.s3.us-east-1.amazonaws.com/backgroundImage-Viewml.jpg');">
+
+  <div class="max-w-3xl mx-auto glass p-6 mt-6 relative z-10">
+
+    <!-- Greeting -->
+    <h2 class="text-xl font-bold mb-4 text-center">
+      Hello {{ session.get('team_name','Team') }}!
+    </h2>
+    <h3 class="text-lg font-semibold mb-4 text-center">Auction Dashboard</h3>
+
+    <!-- Current Player Info -->
+    <div class="flex flex-col items-center mb-4 relative">
+
+      <!-- SOLD STAMP -->
+      <img id="sold_stamp" class="sold-stamp absolute top-0 left-0 w-32 h-32 opacity-0 transition-opacity duration-500"
+           src="https://playersauction.s3.ap-south-1.amazonaws.com/SOLD-STAMP.jpg" />
+
+      <img id="player_image" class="w-40 h-40 object-cover rounded-lg mb-4" 
+           src="{{ default_image_url }}" alt="Player Image">
+      <h3 id="player_name" class="text-lg font-semibold">---</h3>
+      <p id="player_role">Role: ---</p>
+      <p id="player_age">Age: ---</p>
+      <p id="player_base_price">Base Price: ---</p>
+      <p id="current_bid_display" class="font-semibold">Highest Bid: ---</p>
+      <p id="min_bid_display" class="text-gray-700">Minimum Bid: ---</p>
+
+      <!-- Bid History -->
+      <div id="bid_history" class="w-full mt-4 p-2 border rounded max-h-48 overflow-y-auto bg-black bg-opacity-50 text-white">
+        <h4 class="font-semibold mb-2">Bid History</h4>
+        <ul id="bid_history_list" class="list-disc ml-4 text-sm"></ul>
+      </div>
+    </div>
+
+    <!-- Bid Form -->
+    <div class="flex gap-2 items-center justify-center mb-4">
+      <input id="bid_amount" type="number" placeholder="Enter your bid" 
+             class="border p-2 rounded w-32 text-black font-semibold" style="background-color:#f5f5f5;">
+      <button id="place_bid" class="btn-primary px-4 py-2">Place Bid</button>
+    </div>
+    <p id="bid_message" class="text-red-600 font-semibold mb-4"></p>
+
+    <!-- All Teams Info -->
+    <div class="mt-4">
+      <h3 class="font-semibold text-lg mb-2">All Teams & Purchased Players</h3>
+      <div id="teams_container" class="space-y-4"></div>
+    </div>
+  </div>
+
+  <!-- SOLD MODAL -->
+  <div id="sold_modal"
+       class="fixed inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center z-50 opacity-0 pointer-events-none transition-opacity duration-500">
+    <div class="bg-white p-6 rounded-lg text-center relative shadow-lg max-w-sm w-full">
+      <img id="sold_player_image" class="w-32 h-32 rounded mb-4 mx-auto" src="" alt="Player Image">
+      <h2 id="sold_text" class="text-2xl font-bold text-green-600 mb-2">PLAYER SOLD</h2>
+      <p id="sold_team" class="text-2xl font-bold text-green-600 mb-2"></p>
+      <p id="sold_price" class="text-lg font-semibold text-gray-800"></p>
+      <img id="sold_team_logo" class="w-20 h-20 mx-auto mt-2 hidden" src="" alt="Team Logo">
+    </div>
+  </div>
+
+  <!-- Sold Audio -->
+  <audio id="sold_audio" src="{{ url_for('static', filename='playerSold.mp3') }}"></audio>
+
+  <!-- Fireworks Canvas -->
+  <canvas id="fireworks_canvas" class="fixed inset-0 pointer-events-none z-40"></canvas>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+<script>
+const fallback_image = "{{ default_image_url | default('https://via.placeholder.com/150') }}";
+const pollInterval = window.APP_CONFIG.POLL_INTERVAL_MS || 500;
+let lastSoldPlayerId = null;
+let userInteracted = false;
+
+// Ensure audio can play
+document.addEventListener('click', () => { userInteracted = true }, { once: true });
+
+function showSoldModal(player, team, price, logo){
+  const modal = document.getElementById("sold_modal");
+  document.getElementById("sold_player_image").src = player.image || fallback_image;
+  document.getElementById("sold_team").innerText = `SOLD TO ${team}`;
+  document.getElementById("sold_price").innerText = `Final Price: ${price}`;
+  
+  const teamLogo = document.getElementById("sold_team_logo");
+  if(logo){ teamLogo.src = logo; teamLogo.classList.remove("hidden"); }
+  else { teamLogo.classList.add("hidden"); }
+
+  const myConfetti = confetti.create(document.getElementById('fireworks_canvas'), { resize: true, useWorker: true });
+  myConfetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+
+  modal.classList.remove("opacity-0", "pointer-events-none");
+  setTimeout(()=> { modal.classList.add("opacity-0", "pointer-events-none"); }, 3500);
+}
+
+async function fetchState() {
+  try {
+    const res = await fetch("/api/state");
+    const json = await res.json();
+    return json.state || {};
+  } catch(e){ return {}; }
+}
+
+async function refreshUI() {
+  const state = await fetchState();
+  if(!state) return;
+
+  const p = state.current_player || {};
+  const minBid = state.min_increment || 0;
+
+  document.getElementById("player_name").innerText = p.name || "---";
+  document.getElementById("player_role").innerText = "Role: " + (p.role||"---");
+  document.getElementById("player_age").innerText = "Age: " + (p.age||"---");
+  document.getElementById("player_base_price").innerText = "Base Price: " + (p.base_price||"---");
+  document.getElementById("current_bid_display").innerText = "Highest Bid: " + (state.highest_bid || "---");
+  document.getElementById("min_bid_display").innerText = "Minimum Bid: " + minBid;
+  document.getElementById("player_image").src = p.image || fallback_image;
+
+  const bidHistoryList = document.getElementById("bid_history_list");
+  bidHistoryList.innerHTML = "";
+  const bids = state.current_bid_history?.[String(p.id)] || [];
+  bids.forEach(b => {
+    const li = document.createElement("li");
+    li.textContent = `Bid Placed by ${b.team_name}: ${b.amount}`;
+    bidHistoryList.appendChild(li);
+  });
+
+  // SOLD EVENT
+  if(state.sold_to && state.highest_bid && lastSoldPlayerId !== p.id){
+    document.getElementById("sold_stamp").classList.add("opacity-100");
+
+    const audio = document.getElementById("sold_audio");
+    if(userInteracted){ audio.currentTime=0; audio.play().catch(()=>{}); }
+
+    showSoldModal(p, state.sold_to, state.highest_bid, state.sold_team_logo);
+    
+    const li = document.createElement("li");
+    li.textContent = `PLAYER SOLD to ${state.sold_to} for ${state.highest_bid}`;
+    li.classList.add("font-bold","text-green-700");
+    bidHistoryList.appendChild(li);
+
+    lastSoldPlayerId = p.id;
+  } else if(!state.sold_to){
+    document.getElementById("sold_stamp").classList.remove("opacity-100");
+  }
+
+  // Update Teams
+  const teamsContainer = document.getElementById("teams_container");
+  teamsContainer.innerHTML = "";
+  state.teams.forEach(team => {
+    const div = document.createElement("div");
+    div.className = "glass p-3 rounded";
+
+    let html = `<h4 class="font-semibold">${team.team_name} - Purse: ${team.purse}</h4>`;
+    html += `<ul class="ml-4 mt-2 list-disc">`;
+    team.players.forEach(pl => { html += `<li>${pl.name} - ${pl.final_price}</li>`; });
+    html += `</ul>`;
+    div.innerHTML = html;
+    teamsContainer.appendChild(div);
+  });
+}
+
+// Place bid
+document.getElementById("place_bid").addEventListener("click", async function(){
+  const bidInput = document.getElementById("bid_amount");
+  const amount = parseInt(bidInput.value);
+  const state = await fetchState();
+  const minBid = state.min_increment || 0;
+
+  if(!amount || amount < minBid){
+    document.getElementById("bid_message").innerText = `Bid must be at least ${minBid}`;
+    return;
+  }
+  document.getElementById("bid_message").innerText = "";
+
+  try {
+    const res = await fetch("/api/bid", {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({player_id: state.current_player.id, bid_amount: amount})
+    });
+    const j = await res.json();
+    if(j.error) document.getElementById("bid_message").innerText = j.error;
+
+    bidInput.value = "";
+    await refreshUI();
+  } catch(e){ console.error(e); }
+});
+
+// Polling
+refreshUI();
+setInterval(refreshUI, pollInterval);
+
+</script>
+
+{% endblock %}

@@ -9,12 +9,21 @@
     <!-- LEFT PANEL: Current Player + Teams -->
     <div class="flex flex-col gap-6 overflow-y-auto max-h-screen">
 
+      <!-- ⭐ SPONSORED BY + SPONSOR SLIDESHOW ABOVE PLAYER CARD -->
+      <div class="flex flex-col items-center mt-2 mb-4">
+        <p class="text-white text-sm md:text-base font-semibold tracking-wide drop-shadow-lg mb-1">
+            Sponsored By
+        </p>
+        <img id="sponsor_rotating"
+             class="h-16 md:h-20 object-contain drop-shadow-xl transition-opacity duration-2000"
+             src="{{ sponsor_logos[0] }}"
+             alt="Sponsor Logo">
+      </div>
+
       <!-- CURRENT PLAYER -->
       <div class="flex flex-col items-center p-4 glass rounded-lg relative">
-        <!-- SOLD STAMP -->
         <img id="sold_stamp" class="sold-stamp absolute top-2 left-2 w-24 h-24 opacity-0 transition-opacity duration-500"
              src="https://playersauction.s3.ap-south-1.amazonaws.com/SOLD-STAMP.jpg" />
-        <!-- Player Image -->
         <img id="player_image" class="w-32 h-32 md:w-48 md:h-48 object-cover rounded-lg mb-4"
              src="{{ default_image_url }}" alt="Player Image">
         <h3 id="player_name" class="text-lg md:text-xl font-semibold text-white">---</h3>
@@ -25,16 +34,9 @@
         <p id="highest_bidder_display" class="text-white">Bid by: ---</p>
       </div>
 
-      <!-- TEAMS GRID -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {% for i in range(4) %}
-        <div id="team_box_{{ i }}" class="glass p-3 rounded-lg text-white flex flex-col items-center">
-          <img id="team_logo_{{ i }}" class="w-16 h-16 mb-2 hidden" src="" alt="Team Logo">
-          <h4 id="team_name_{{ i }}" class="font-semibold text-center text-sm md:text-base">Team {{ i+1 }}</h4>
-          <p id="team_purse_{{ i }}" class="text-xs md:text-sm">Purse: ---</p>
-          <ul id="team_players_{{ i }}" class="list-disc list-inside text-xs md:text-sm"></ul>
-        </div>
-        {% endfor %}
+      <!-- TEAMS GRID (4-Column Tile with Logo + Stats) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4" id="teams_container">
+        <!-- Tiles will be populated by JS -->
       </div>
     </div>
 
@@ -72,7 +74,7 @@
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 <script>
 const fallback_image = "{{ default_image_url }}";
-const pollInterval = window.APP_CONFIG.POLL_INTERVAL_MS || 800;
+const pollInterval = window.APP_CONFIG.POLL_INTERVAL_MS || 500;
 let lastSoldPlayerId = null;
 let userInteracted = false;
 
@@ -89,11 +91,14 @@ async function fetchState() {
   }
 }
 
-function showSoldModal(player, team, price) {
+function showSoldModal(player, team, price, logo) {
   const modal = document.getElementById("sold_modal");
   document.getElementById("sold_player_image").src = player.image || fallback_image;
   document.getElementById("sold_team").innerText = `SOLD TO ${team}`;
   document.getElementById("sold_price").innerText = `Final Price: ${price}`;
+  const teamLogo = document.getElementById("sold_team_logo");
+  if(logo){ teamLogo.src = logo; teamLogo.classList.remove("hidden"); }
+  else { teamLogo.classList.add("hidden"); }
 
   const myConfetti = confetti.create(document.getElementById('fireworks_canvas'), { resize: true, useWorker: true });
   myConfetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
@@ -107,7 +112,6 @@ async function refreshUI() {
   if(!state) return;
 
   const p = state.current_player || {};
-  const active = state.auction_active;
 
   // Player card
   document.getElementById("player_name").innerText = p.name || "---";
@@ -128,41 +132,80 @@ async function refreshUI() {
       audio.play().catch(()=>{});
     }
 
-    showSoldModal(p, state.sold_to, state.highest_bid);
+    showSoldModal(p, state.sold_to, state.highest_bid, state.sold_team_logo);
     lastSoldPlayerId = p.id;
   } else if(!state.sold_to){
     document.getElementById("sold_stamp").classList.remove("opacity-100");
   }
 
-  // Teams grid
-  for(let i=0; i<4; i++){
-    const team = state.teams[i];
-    const box = document.getElementById(`team_box_${i}`);
-    if(team){
-      document.getElementById(`team_name_${i}`).innerText = team.team_name;
-      document.getElementById(`team_purse_${i}`).innerText = `Purse: ${team.purse}`;
-      const logoEl = document.getElementById(`team_logo_${i}`);
-      if(team.logo){
-        logoEl.src = team.logo;
-        logoEl.classList.remove("hidden");
-      } else {
-        logoEl.classList.add("hidden");
-      }
-      const playerList = document.getElementById(`team_players_${i}`);
-      playerList.innerHTML = "";
-      team.players.forEach(pl=>{
-        const li = document.createElement("li");
-        li.textContent = `${pl.name} - ${pl.final_price}`;
-        playerList.appendChild(li);
-      });
+  /* -------- TEAMS PURCHASE LIST (4 COLUMN TILE WITH LOGO + STATS) -------- */
+  const teamsContainer = document.getElementById("teams_container");
+  teamsContainer.innerHTML = "";
+
+  state.teams.forEach(team => {
+    const div = document.createElement("div");
+    div.className = "glass p-3 rounded text-center";
+
+    const logo = (team.logos && team.logos.length > 0)
+                 ? team.logos[0]
+                 : "https://via.placeholder.com/80";
+
+    const totalSpent = team.players.reduce((a, p) => a + (p.final_price || 0), 0);
+    const purseRemaining = team.purse;
+
+    let html = `
+      <img src="${logo}" class="w-16 h-16 mx-auto mb-2 rounded-full border shadow">
+      <h4 class="font-semibold text-lg mb-1">${team.team_name}</h4>
+
+      <div class="text-sm mb-2">
+        <p><span class="font-bold text-green-300">Spent:</span> ${totalSpent}</p>
+        <p><span class="font-bold text-yellow-300">Remaining:</span> ${purseRemaining}</p>
+      </div>
+
+      <hr class="border-gray-500 mb-2">
+
+      <h5 class="font-semibold text-sm underline mb-1">Purchased Players</h5>
+      <ul class="ml-3 text-left list-disc">`;
+
+    if (team.players.length === 0) {
+      html += `<li class="text-gray-400 text-sm">No players purchased</li>`;
     } else {
-      box.innerHTML = `<h4 class="font-semibold text-center text-sm md:text-base">Team ${i+1}</h4>`;
+      team.players.forEach(pl => {
+        html += `<li>${pl.name} – ${pl.final_price}</li>`;
+      });
     }
-  }
+
+    html += `</ul>`;
+    div.innerHTML = html;
+
+    teamsContainer.appendChild(div);
+  });
 }
+
+/* ---------------------------------------------------
+   ⭐ AUTO ROTATING SPONSOR TILE — NO LOGIC MODIFIED
+----------------------------------------------------- */
+let sponsorIndex = 0;
+const sponsorImages = {{ sponsor_logos | tojson }};
+
+function rotateSponsors() {
+  const img = document.getElementById("sponsor_rotating");
+  if (!img) return;
+
+  sponsorIndex = (sponsorIndex + 1) % sponsorImages.length;
+
+  img.style.opacity = 0;
+  setTimeout(() => {
+    img.src = sponsorImages[sponsorIndex];
+    img.style.opacity = 1;
+  }, 400);
+}
+
+setInterval(rotateSponsors, 2500);
 
 refreshUI();
 setInterval(refreshUI, pollInterval);
+
 </script>
 
 {% endblock %}

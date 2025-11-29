@@ -45,7 +45,7 @@ DEFAULT_PLAYERS = [
     {"id": 1, "name": "Srinu Dantuluri", "age": 45, "role": "Bowler",
      "base_price": 1000, "grade": "V", "image": "", "sold": False, "sold_to": "", "final_price": 0}
 ]
-MAINTENANCE_MODE = True
+MAINTENANCE_MODE = False
 DEFAULT_SOLD = []
 DEFAULT_HISTORY = []
 DEFAULT_STATE = {
@@ -158,16 +158,23 @@ def auctioneer():
 def bidder():
     if session.get("role") != "bidder":
         return redirect(url_for("login"))
-    return render_template("bidder.html", poll_interval_ms=POLL_INTERVAL_MS, default_image_url=DEFAULT_IMAGE_URL)
+    sponsor_logos = [
+    "https://playerimages-1.s3.us-east-1.amazonaws.com/veggies_logo.png",
+    "https://playerimages-1.s3.us-east-1.amazonaws.com/Kshatriya+Logo.jpeg"
+]
+    return render_template("bidder.html", poll_interval_ms=POLL_INTERVAL_MS, default_image_url=DEFAULT_IMAGE_URL,sponsor_logos=sponsor_logos)
 
 @app.route("/viewer")
 def viewer():
     video_urls = [
-        "https://playerimages-1.s3.us-east-1.amazonaws.com/WhatsApp+Video+2025-11-17+at+12.15.49+AM.mp4",
         "https://playerimages-1.s3.us-east-1.amazonaws.com/WhatsApp+Video+2025-11-17+at+12.15.49+AM.mp4"
-        # add more URLs if needed
     ]
-    return render_template("viewer.html", poll_interval_ms=POLL_INTERVAL_MS, default_image_url=DEFAULT_IMAGE_URL,video_urls=video_urls)
+    sponsor_logos = [
+    "https://playerimages-1.s3.us-east-1.amazonaws.com/veggies_logo.png",
+    "https://playerimages-1.s3.us-east-1.amazonaws.com/Kshatriya+Logo.jpeg"
+]
+
+    return render_template("viewer.html", poll_interval_ms=POLL_INTERVAL_MS, default_image_url=DEFAULT_IMAGE_URL,video_urls=video_urls,sponsor_logos=sponsor_logos)
 
 # ----------------------------
 # APIs
@@ -205,7 +212,6 @@ def api_select_player():
 
     write_json(STATE_FILE, state)
     return jsonify({"success": True, "current_player": player})
-
 @app.route("/api/state")
 def api_state():
     players = read_json(PLAYERS_FILE, DEFAULT_PLAYERS)
@@ -222,17 +228,30 @@ def api_state():
         bid_history = state.get("current_bid_history", {}).get(pid_key, [])
 
     if not current_player:
-        current_player = {"name":"Waiting for next player...","role":"---","age":"---",
-                          "base_price":"---","image":DEFAULT_IMAGE_URL}
+        current_player = {
+            "name": "Waiting for next player...",
+            "role": "---",
+            "age": "---",
+            "base_price": "---",
+            "image": DEFAULT_IMAGE_URL
+        }
         highest_bid = "---"
         bid_history = []
 
+    # 👉 FIX: Add grade so UI can group by Grade A/B/C etc.
     teams_view = []
     for t in teams:
         sold_players = [
-            {"id":p["id"],"name":p["name"],"final_price":p["final_price"]}
-            for p in players if p.get("sold_to") == t.get("team_name")
+            {
+                "id": p["id"],
+                "name": p["name"],
+                "final_price": p["final_price"],
+                "grade": p["grade"]           #  ✅ ADDED
+            }
+            for p in players
+            if p.get("sold_to") == t.get("team_name")
         ]
+
         t_copy = deepcopy(t)
         t_copy["players"] = sold_players
         teams_view.append(t_copy)
@@ -244,7 +263,9 @@ def api_state():
             "highest_bid": highest_bid,
             "teams": teams_view,
             "auction_active": state.get("auction_active", False),
-            "min_increment": compute_min_increment(current_player.get("base_price", DEFAULT_BASE_PRICE)),
+            "min_increment": compute_min_increment(
+                current_player.get("base_price", DEFAULT_BASE_PRICE)
+            ),
             "current_bid_history": state.get("current_bid_history", {}),
             "current_bid": state.get("current_bid"),
             "last_bid_team": state.get("last_bid_team", ""),

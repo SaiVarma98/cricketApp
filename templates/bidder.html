@@ -4,7 +4,7 @@
 <div class="relative min-h-screen bg-cover bg-center"
      style="background-image: url('https://playerimages-1.s3.us-east-1.amazonaws.com/backgroundImage-Viewml.jpg');">
 
-  <div class="max-w-3xl mx-auto glass p-6 mt-6 relative z-10">
+  <div class="max-w-6xl mx-auto glass p-6 mt-6 relative z-10">
 
     <!-- Greeting -->
     <h2 class="text-xl font-bold mb-4 text-center">
@@ -26,7 +26,7 @@
       <p id="player_age">Age: ---</p>
       <p id="player_base_price">Base Price: ---</p>
       <p id="current_bid_display" class="font-semibold">Highest Bid: ---</p>
-      <p id="min_bid_display" class="text-gray-700">Minimum Bid: ---</p>
+      <p id="min_bid_display" class="text-gray-300">Minimum Bid: ---</p>
 
       <!-- Bid History -->
       <div id="bid_history" class="w-full mt-4 p-2 border rounded max-h-48 overflow-y-auto bg-black bg-opacity-50 text-white">
@@ -46,8 +46,9 @@
     <!-- All Teams Info -->
     <div class="mt-4">
       <h3 class="font-semibold text-lg mb-2">All Teams & Purchased Players</h3>
-      <div id="teams_container" class="space-y-4"></div>
+      <div id="teams_container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
     </div>
+
   </div>
 
   <!-- SOLD MODAL -->
@@ -80,6 +81,16 @@ let userInteracted = false;
 
 // Ensure audio can play
 document.addEventListener('click', () => { userInteracted = true }, { once: true });
+
+function groupPlayersByGrade(players) {
+  const groups = {};
+  players.forEach(p => {
+    const g = p.grade || "NA";
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(p);
+  });
+  return groups;
+}
 
 function showSoldModal(player, team, price, logo){
   const modal = document.getElementById("sold_modal");
@@ -149,17 +160,53 @@ async function refreshUI() {
     document.getElementById("sold_stamp").classList.remove("opacity-100");
   }
 
-  // Update Teams
+  /* -------- TEAMS PURCHASE LIST (4 COLUMN TILE WITH LOGO + STATS) -------- */
   const teamsContainer = document.getElementById("teams_container");
   teamsContainer.innerHTML = "";
+
   state.teams.forEach(team => {
     const div = document.createElement("div");
-    div.className = "glass p-3 rounded";
+    div.className = "glass p-3 rounded text-center";
 
-    let html = `<h4 class="font-semibold">${team.team_name} - Purse: ${team.purse}</h4>`;
-    html += `<ul class="ml-4 mt-2 list-disc">`;
-    team.players.forEach(pl => { html += `<li>${pl.name} - ${pl.final_price}</li>`; });
+    const logo = (team.logos && team.logos.length > 0)
+                 ? team.logos[0]
+                 : "https://via.placeholder.com/80";
+
+    const totalSpent = team.players.reduce((a, p) => a + (p.final_price || 0), 0);
+    const purseRemaining = team.purse;
+
+    // Grade summary
+    const gradeGroups = groupPlayersByGrade(team.players);
+    const gradeSummary = Object.keys(gradeGroups)
+                               .map(g => `Grade ${g} - ${gradeGroups[g].length}`)
+                               .join(", ") || "None";
+
+    let html = `
+      <img src="${logo}" class="w-16 h-16 mx-auto mb-2 rounded-full border shadow">
+      <h4 class="font-semibold text-lg mb-1">${team.team_name}</h4>
+
+      <div class="text-sm mb-2">
+        <p><span class="font-bold text-green-300">Spent:</span> ${totalSpent}</p>
+        <p><span class="font-bold text-yellow-300">Remaining:</span> ${purseRemaining}</p>
+        <p class="text-brwon-300 font-semibold mt-1">${gradeSummary}</p>
+      </div>
+
+      <hr class="border-gray-500 mb-2">
+
+      <h5 class="font-semibold text-sm underline mb-1">Purchased Players</h5>
+      <ul class="ml-4 text-left list-disc text-sm">
+    `;
+
+    if(team.players.length === 0){
+      html += `<li class="text-gray-400">No players purchased</li>`;
+    } else {
+      team.players.forEach(pl => {
+        html += `<li>${pl.name} – ${pl.final_price}</li>`;
+      });
+    }
+
     html += `</ul>`;
+
     div.innerHTML = html;
     teamsContainer.appendChild(div);
   });

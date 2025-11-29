@@ -769,7 +769,7 @@
   },
   {
     "id": 65,
-    "name": "Virendra Varma",
+    "name": "Veerandra Varma",
     "age": 37,
     "role": "Allrounder",
     "base_price": 300,
@@ -811,6 +811,18 @@
     "base_price": 100,
     "grade": "C",
     "image": "https://playerimages-1.s3.us-east-1.amazonaws.com/Tirumalaraju+Vijay+Varma.jpeg",
+    "sold": false,
+    "sold_to": "",
+    "final_price": 0
+  },
+  {
+    "id": 69,
+    "name": "Ravi D",
+    "age": 56,
+    "role": "Batsman",
+    "base_price": 100,
+    "grade": "V",
+    "image": "https://playerimages-1.s3.us-east-1.amazonaws.com/Ravi+D.jpeg",
     "sold": false,
     "sold_to": "",
     "final_price": 0

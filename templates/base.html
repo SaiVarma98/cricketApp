@@ -68,7 +68,19 @@
 
   <!-- NAVBAR -->
   <nav class="w-full glass neon-border py-4 px-6 flex justify-between items-center sticky top-0 z-50">
-    <div class="text-2xl font-bold neon-text tracking-widest">MANA OORU AUCTION</div>
+    <div class="flex items-center justify-center gap-4 py-4">
+    
+    <!-- Main Title -->
+    <h1 class="text-3xl md:text-4xl font-extrabold text-white drop-shadow-lg">
+        MPL - Auction 2026
+    </h1>
+
+    <!-- ⭐ MAIN SPONSOR LOGO ⭐ -->
+    <img src="https://playerimages-1.s3.us-east-1.amazonaws.com/Kshatriya+Logo.jpeg"
+         class="h-12 md:h-16 object-contain drop-shadow-lg"
+         alt="Main Sponsor">
+</div>
+
     <div class="flex gap-4 items-center">
       {% if session.get('user') %}
         <span class="text-sm opacity-80">Hello, {{ session.get('user') }}</span>

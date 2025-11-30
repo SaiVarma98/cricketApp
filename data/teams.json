@@ -4,7 +4,7 @@
     "purse": 10000,
     "players": [],
     "logos": [
-      "https://playerimages-1.s3.us-east-1.amazonaws.com/Chaitu.jpeg"
+      "https://cricketapp-players.s3.ap-south-1.amazonaws.com/Chaitu.jpeg"
     ]
   },
   {
@@ -12,7 +12,7 @@
     "purse": 10000,
     "players": [],
     "logos": [
-      "https://playerimages-1.s3.us-east-1.amazonaws.com/Varma+.jpeg"
+      "https://cricketapp-players.s3.ap-south-1.amazonaws.com/Varma+.jpeg"
     ]
   },
   {
@@ -20,7 +20,7 @@
     "purse": 10000,
     "players": [],
     "logos": [
-      "https://playerimages-1.s3.us-east-1.amazonaws.com/Srihari+varma.jpg"
+      "https://cricketapp-players.s3.ap-south-1.amazonaws.com/Srihari+varma.jpg"
     ]
   },
   {
@@ -28,7 +28,7 @@
     "purse": 10000,
     "players": [],
     "logos": [
-      "https://playerimages-1.s3.us-east-1.amazonaws.com/Santosh+.jpg"
+      "https://cricketapp-players.s3.ap-south-1.amazonaws.com/Santosh+.jpg"
     ]
   }
 ]
